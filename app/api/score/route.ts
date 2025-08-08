@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scoreDocs } from '@/lib/scoring';
 import { norm } from '@/lib/text';
-import mammoth from 'mammoth';
-// @ts-ignore
-import pdf from 'pdf-parse';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const preferredRegion = 'auto';
 
 async function readPDF(buf: Buffer) {
+  // Lazy import to avoid bundling issues during build
+  const mod = await import('pdf-parse');
+  const pdf: any = (mod as any).default || mod;
   const data = await pdf(buf);
   return String(data.text || '');
 }
 
 async function readDOCX(ab: ArrayBuffer) {
+  // Lazy import to avoid bundling issues during build
+  const mod = await import('mammoth');
+  const mammoth: any = (mod as any).default || mod;
   const res = await mammoth.extractRawText({ arrayBuffer: ab });
   return String(res.value || '');
 }
@@ -65,11 +68,13 @@ export async function POST(req: NextRequest) {
       docs.push({ id: name, text: clean, name, preview: text.slice(0, 400) });
     }
 
-    const query = `${jd}\n\n${notes}`;
+    const query = `${jd}
+
+${notes}`;
     const results = scoreDocs(query, docs.map(d => ({ id: d.id, text: d.text })));
 
     const withMeta = results.map(r => {
-      const doc = docs.find(d => d.id == r.id)!;
+      const doc = docs.find(d => d.id === r.id)!;
       return {
         filename: doc.name,
         score: r.score,
